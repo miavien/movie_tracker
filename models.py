@@ -1,11 +1,9 @@
 from datetime import datetime
 from typing import Optional
-
 from sqlalchemy import String, Integer, DateTime, List, Text, func, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from database import Base
 
-Base = declarative_base()
 
 class BaseModel(Base):
     __abstract__ = True
@@ -13,6 +11,7 @@ class BaseModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
 
 class User(BaseModel):
     __tablename__ = 'users'
@@ -24,6 +23,7 @@ class User(BaseModel):
     movies: Mapped[List['Movie']] = relationship('Movie', back_populates='user', cascade='all, delete-orphan')
     reviews: Mapped[List['Review']] = relationship('Review', back_populates='user', cascade='all, delete-orphan')
 
+
 class Movie(BaseModel):
     __tablename__ = 'movies'
 
@@ -34,6 +34,7 @@ class Movie(BaseModel):
 
     user: Mapped['User'] = relationship('User', back_populates='movies', cascade='all, delete-orphan')
     review: Mapped[Optional['Review']] = relationship('Review', back_populates='movie', cascade='all, delete-orphan')
+
 
 class Review(BaseModel):
     __tablename__ = 'reviews'
