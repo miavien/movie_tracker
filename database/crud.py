@@ -49,7 +49,7 @@ async def add_review(session: AsyncSession, telegram_id: int, movie_id: int, rat
         await session.commit()
         logger.info(f'Добавили рецензию пользователю с Telegram ID {telegram_id}!')
         return new_review
-    except SQLAlchemyError as e:
+    except Exception as e:
         logger.error(f'Ошибка при добавлении рецензии: {e}')
         await session.rollback()
         return None

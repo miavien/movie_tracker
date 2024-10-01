@@ -1,4 +1,4 @@
-from aiogram import types, Router, Dispatcher
+from aiogram import types, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -45,9 +45,11 @@ async def find_and_send_movies(session, message: types.Message, partial_title: s
             movie_titles) + '\nПожалуйста, выберите фильм из списка:'
         await message.answer(movies_message)
         await state.update_data(movie_titles=movie_titles)
+        return True
     else:
         await message.answer('Фильмы не найдены. Пожалуйста, попробуйте снова.',
                              reply_markup=main_menu_keyboard)
+        return False
 
 
 @router.message(lambda message: message.text == '⚙️ Ещё...')
@@ -116,22 +118,11 @@ async def add_review_handler(message: types.Message, state: FSMContext):
 async def process_movie(message: types.Message, state: FSMContext):
     movie_title = message.text
     async with AsyncSessionLocal() as session:
-        movies = await session.scalars(select(Movie).filter(Movie.title.ilike(f'%{movie_title}%')))
-        movies_without_review = []
-        for movie in movies:
-            review = await session.scalar(select(Review).filter_by(movie_id=movie.id))
-            if not review:
-                movies_without_review.append(movie)
+        found = await find_and_send_movies(session, message, movie_title, state)
 
-    if movies_without_review:
-        movie_titles = [movie.title for movie in movies_without_review]
-        await message.answer(
-            f'Найдены следующие фильмы:\n' + '\n'.join(movie_titles) + '\nПожалуйста, выберите фильм из списка:')
-        await state.update_data(movie_titles=movie_titles)
+    if found:
         await state.set_state(ReviewStates.waiting_for_selected_movie)
     else:
-        await message.answer('Недоступный фильм для добавления рецензии.',
-                             reply_markup=main_menu_keyboard)
         await state.clear()
 
 
@@ -143,7 +134,7 @@ async def process_selected_movie(message: types.Message, state: FSMContext):
 
     if selected_title in movie_titles:
         await state.update_data(selected_title=selected_title)
-        await message.answer('Вы выбрали фильм. Пожалуйста, введите ваш рейтинг (от 1 до 5):')
+        await message.answer('Пожалуйста, введите ваш рейтинг (от 1 до 5):')
         await state.set_state(ReviewStates.waiting_for_rating)
     else:
         await message.answer('Ошибка: выбранный фильм не найден в списке. Пожалуйста, попробуйте снова.',
@@ -162,9 +153,7 @@ async def process_rating(message: types.Message, state: FSMContext):
         await message.answer('Пожалуйста, введите ваш комментарий к фильму:')
         await state.set_state(ReviewStates.waiting_for_comment)
     else:
-        await message.answer('Пожалуйста, введите корректный рейтинг (от 1 до 5).',
-                             reply_markup=main_menu_keyboard)
-    await state.clear()
+        await message.answer('Пожалуйста, введите корректный рейтинг (от 1 до 5).', reply_markup=main_menu_keyboard)
 
 
 @router.message(ReviewStates.waiting_for_comment)
@@ -179,14 +168,12 @@ async def process_comment(message: types.Message, state: FSMContext):
         if movie:
             review = await add_review(session, message.from_user.id, movie.id, rating, comment)
             if review:
-                await message.answer('Ваш отзыв успешно добавлен! 🎉',
-                                     reply_markup=main_menu_keyboard)
+                await message.answer('Ваш отзыв успешно добавлен! 🎉', reply_markup=main_menu_keyboard)
             else:
                 await message.answer('Произошла ошибка при добавлении отзыва. Попробуйте снова.',
                                      reply_markup=main_menu_keyboard)
         else:
-            await message.answer('Ошибка: фильм не найден.',
-                                 reply_markup=main_menu_keyboard)
+            await message.answer('Ошибка: фильм не найден.', reply_markup=main_menu_keyboard)
 
     await state.clear()
 
@@ -237,6 +224,7 @@ async def process_movie_selected(message: types.Message, state: FSMContext):
                              reply_markup=main_menu_keyboard)
         await state.clear()
 
+
 @router.message(DeleteMovieStates.waiting_for_confirmation)
 async def process_movie_confirmation(message: types.Message, state: FSMContext):
     answer = message.text
@@ -255,6 +243,7 @@ async def process_movie_confirmation(message: types.Message, state: FSMContext):
     else:
         answer = 'Пожалуйста, ответьте "Да" или "Нет".'
     await message.answer(answer, reply_markup=main_menu_keyboard)
+
 
 @router.message(lambda message: message.text == '✏️ Редактировать рецензию')
 async def update_review_handler(message: types.Message, state: FSMContext):
@@ -275,6 +264,7 @@ async def process_movie_updating(message: types.Message, state: FSMContext):
             await message.answer('Фильмы не найдены для редактирования рецензии. Попробуйте снова.')
             await state.clear()
 
+
 @router.message(UpdateReviewStates.waiting_for_selected_movie)
 async def process_selected_movie_updating(message: types.Message, state: FSMContext):
     selected_movie = message.text
@@ -287,6 +277,7 @@ async def process_selected_movie_updating(message: types.Message, state: FSMCont
                     f'Ваш текущий рейтинг: {review.rating}\nВаш комментарий: {review.comment}\nВведите новый рейтинг:')
                 await state.update_data(review_id=review.id)
                 await state.set_state(UpdateReviewStates.waiting_for_new_rating)
+
 
 def register_handlers(dp):
     dp.include_router(router)
