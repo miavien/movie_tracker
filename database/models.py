@@ -39,7 +39,7 @@ class Review(BaseModel):
     __tablename__ = 'reviews'
 
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'), nullable=False)
-    movie_id: Mapped[int] = mapped_column(Integer, ForeignKey('movies.id'), nullable=False)
+    movie_id: Mapped[int] = mapped_column(Integer, ForeignKey('movies.id', ondelete='CASCADE'), nullable=False)
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
     comment: Mapped[Optional[str]] = mapped_column(Text)
 

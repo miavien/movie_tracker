@@ -53,3 +53,30 @@ async def add_review(session: AsyncSession, telegram_id: int, movie_id: int, rat
         logger.error(f'Ошибка при добавлении рецензии: {e}')
         await session.rollback()
         return None
+
+async def format_movies_info(result):
+    if not result:
+        return 'У вас нет добавленных фильмов.'
+
+    movies_info = []
+    for movie, review in result:
+        movie_info = f'Фильм: {movie.title}'
+        if review:
+            movie_info += f'\nРейтинг: {review.rating}'
+            movie_info += f'\nКомментарий: {review.comment}'
+        else:
+            movie_info += '\nРецензия отсутствует.'
+        movies_info.append(movie_info)
+
+    return '\n\n'.join(movies_info)
+
+async def get_movies_and_reviews(session: AsyncSession, telegram_id: int):
+    user = await session.scalar(select(User).filter_by(telegram_id=telegram_id))
+    movies = await session.scalars(select(Movie).filter_by(user_id=user.id))
+    if not movies:
+        return [], user
+    result = []
+    for movie in movies:
+        review = await session.scalar(select(Review).filter_by(movie_id=movie.id))
+        result.append((movie, review))
+    return result, user
